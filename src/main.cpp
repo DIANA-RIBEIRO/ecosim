@@ -97,7 +97,13 @@ int main()
         entity_grid.assign(NUM_ROWS, std::vector<entity_t>(NUM_ROWS, { empty, 0, 0}));
         
         // Create the entities
-        // <YOUR CODE HERE>
+        // <YOUR CODE HERE> vector<int>::iterator it = v1.begin();
+        vector<entity_t>::iterator  it = entity_grid.begin();
+        for(int i = 0 ; i < (uint32_t)request_body["plants"]; i++)
+        {
+            entity_t newPlant = {entity_type_t::plant, 0, 10};
+            entity_grid.insert(1, newPlant);
+        }
 
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
@@ -117,6 +123,10 @@ int main()
         nlohmann::json json_grid = entity_grid; 
         return json_grid.dump(); });
     app.port(8080).run();
+
+    /*entity_type_t(P);
+    entity_type_t a = entity_type_t::carnivore;*/
+
 
     return 0;
 }
