@@ -18,7 +18,7 @@ O ecossistema avança em etapas de tempo, durante as quais todas as entidades re
 ## Entidades
 ### 1. Plantas
    - **Representação do Caractere**: 'P'
-   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade.
+   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade com idade igual a 0.
    - **Probabilidade de Crescimento**: 20% de chance por etapa de tempo.
    - **Direção de Crescimento**: Célula vazia adjacente selecionada aleatoriamente.
    - **Regras**:
@@ -29,7 +29,7 @@ O ecossistema avança em etapas de tempo, durante as quais todas as entidades re
 
 ### 2. Herbívoros
    - **Representação do Caractere**: 'H'
-   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade.
+   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade com energia inicial igual a 100 e idade igual 0.
    - **Probabilidade de Movimento**: 70% de chance de se mover por etapa de tempo.
    - **Direção de Movimento**: Célula adjacente selecionada aleatoriamente (excluindo células com carnívoros).
    - **Custo de Energia**: Cada movimento custa 5 unidades de energia.
@@ -44,7 +44,7 @@ O ecossistema avança em etapas de tempo, durante as quais todas as entidades re
 
 ### 3. Carnívoros
    - **Representação do Caractere**: 'C'
-   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade.
+   - **Colocação Inicial**: Posicionado aleatoriamente dentro da grade com energia inicial igual a 100 e idade igual 0.
    - **Probabilidade de Movimento**: 50% de chance de se mover por etapa de tempo.
    - **Direção de Movimento**: Célula adjacente selecionada aleatoriamente (incluindo células com herbívoros).
    - **Custo de Energia**: Cada movimento custa 5 unidades de energia.
