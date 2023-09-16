@@ -4,7 +4,11 @@
 #include "crow_all.h"
 #include "json.hpp"
 #include <random>
-//#include "../samples/simulate_random_actions.cpp"
+//#include <stdio.h>
+//#include <stack>
+#include <iostream>
+#include <chrono>
+#include <thread>
 
 static const uint32_t NUM_ROWS = 15;
 
@@ -28,6 +32,7 @@ std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_int_distribution<> distribution(0, NUM_ROWS-1);
 std::uniform_real_distribution<> dis(0.0, 1.0);
+
 
 // Type definitions
 enum entity_type_t
@@ -128,9 +133,9 @@ void startEcoSim(uint32_t NUM_PLANTS, uint32_t NUM_HERBV, uint32_t NUM_CARNV)
 //Simula o envelhecimento dos seres do sistema
 void ageSimulation()
 {
-    for (auto& street : entity_grid)
+    for (auto& row : entity_grid)
     {
-        for (auto& space : street)
+        for (auto& space : row)
         {
             if(space.type != newEmpty.type) space.age--;
             if(space.age == 0) space = newEmpty;
@@ -141,12 +146,12 @@ void ageSimulation()
 //***PLANTA
 //*
 //Faz uma planta crescer em um espaço adjacente
-void walk(int i, int j)
+void growth(int i, int j)
 {
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type)) entity_grid[i + 1][j] = newPlant;
     else if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)) entity_grid[i - 1][j] = newPlant;
-    else if((j - 1) >= 0 && (entity_grid[j - 1][j].type == newEmpty.type)) entity_grid[i][j - 1] = newPlant;
-    else if((j + 1) < NUM_ROWS && (entity_grid[j + 1][j].type == newEmpty.type)) entity_grid[i][j + 1] = newPlant;
+    else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)) entity_grid[i][j - 1] = newPlant;
+    else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)) entity_grid[i][j + 1] = newPlant;
 }
 
 //Confere probabilidade de uma planta crescer
@@ -156,7 +161,7 @@ void plantGrowth()
     {
         for (int j = 0; j < NUM_ROWS; j++)
         {
-            if(entity_grid[i][j].type == newPlant.type & dis(gen) < PLANT_REPRODUCTION_PROBABILITY) walk(i, j);
+            if(entity_grid[i][j].type == newPlant.type & dis(gen) < PLANT_REPRODUCTION_PROBABILITY) growth(i, j);
         }
     }
 }
@@ -164,44 +169,47 @@ void plantGrowth()
 //***HERBIVORO
 //*
 //Movimentacao do herbívoro
-void walkHerbv(int i, int j)
+void walk(int i, int j)
 {
+    int possibilities[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}}, 
+        valueRan, valueTot = 0;
+
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type))
     {
-        entity_grid[i][j].energy -= 5;
-        entity_grid[i + 1][j] = entity_grid[i][j];
-        entity_grid[i][j] = newEmpty;
+        possibilities[valueTot][0] = i + 1;
+        possibilities[valueTot][1] = j;
+        valueTot++;
     }
-    else if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)) 
+    if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)) 
     {
-        entity_grid[i][j].energy -= 5;
-        entity_grid[i - 1][j] = entity_grid[i][j];
-        entity_grid[i][j] = newEmpty;
+        possibilities[valueTot][0] = i - 1;
+        possibilities[valueTot][1] = j;
+        valueTot++;
     }
-    else if((j - 1) >= 0 && (entity_grid[j - 1][j].type == newEmpty.type)) 
+    if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)) 
     {
-        entity_grid[i][j].energy -= 5;
-        entity_grid[i][j - 1] = entity_grid[i][j];
-        entity_grid[i][j] = newEmpty;
+        possibilities[valueTot][0] = i;
+        possibilities[valueTot][1] = j-1;
+        valueTot++;
     }
-    else if((j + 1) < NUM_ROWS && (entity_grid[j + 1][j].type == newEmpty.type)) 
+    if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)) 
     {
-        entity_grid[i][j].energy -= 5;
-        entity_grid[i][j + 1] = entity_grid[i][j];
-        entity_grid[i][j] = newEmpty;
+        possibilities[valueTot][0] = i;
+        possibilities[valueTot][1] = j + 1;
+        valueTot++;
     }
-}
 
-//Confere probabilidade de um herbivoro andar
-void moveHerbv()
-{
-    for (int i = 0; i < NUM_ROWS; i++)
+    if(valueTot - 1 != -1)
     {
-        for (int j = 0; j < NUM_ROWS; j++)
-        {
-            if(entity_grid[i][j].type == newHerbivore.type & dis(gen) < HERBIVORE_MOVE_PROBABILITY) walkHerbv(i, j);
-        }
+        std::uniform_real_distribution<> rand(0, valueTot - 1);
+        valueRan = rand(gen);
+        int I = possibilities[valueRan][0], J = possibilities[valueRan][1];
+
+        entity_grid[i][j].energy -= 5;
+        entity_grid[I][J] = entity_grid[i][j];
+        entity_grid[i][j] = newEmpty;
     }
+    
 }
 
 //Confere probabilidade de um herbivoro ou carnivoro comer e realiza a acao
@@ -217,12 +225,12 @@ void eat(int i, int j, entity_t animal, int32_t gainEnergy)
         entity_grid[i - 1][j] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
     }
-    else if((j - 1) >= 0 && (entity_grid[j - 1][j].type == animal.type)) 
+    else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == animal.type)) 
     {
         entity_grid[i][j - 1] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
     }
-    else if((j + 1) < NUM_ROWS && (entity_grid[j + 1][j].type == animal.type)) 
+    else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == animal.type)) 
     {
         entity_grid[i][j + 1] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
@@ -242,12 +250,12 @@ void reproduceHerb(int i, int j)
         entity_grid[i - 1][j] = newHerbivore;
         entity_grid[i][j].energy -= 10;
     }
-    else if((j - 1) >= 0 && (entity_grid[j - 1][j].type == newEmpty.type) && (entity_grid[j - 1][j].type != newCarnivore.type)) 
+    else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type) && (entity_grid[i][j - 1].type != newCarnivore.type)) 
     {
         entity_grid[i][j - 1] = newHerbivore;
         entity_grid[i][j].energy -= 10;
     }
-    else if((j + 1) < NUM_ROWS && (entity_grid[j + 1][j].type == newEmpty.type) && (entity_grid[j + 1][j].type != newCarnivore.type)) 
+    else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type) && (entity_grid[i][j + 1].type != newCarnivore.type)) 
     {
         entity_grid[i][j + 1] = newHerbivore;
         entity_grid[i][j].energy -= 10;
@@ -256,10 +264,63 @@ void reproduceHerb(int i, int j)
     if(entity_grid[i][j].energy == 0) entity_grid[i][j] = newEmpty;
 }
 
+
+void actionHerbv(int action)
+{
+    for (int i = 0; i < NUM_ROWS; i++)
+    {
+        for (int j = 0; j < NUM_ROWS; j++)
+        {
+            if(entity_grid[i][j].type == newHerbivore.type & dis(gen) < HERBIVORE_EAT_PROBABILITY && action == 1) eat(i, j, newPlant, 30); 
+            if(entity_grid[i][j].type == newHerbivore.type & dis(gen) < HERBIVORE_MOVE_PROBABILITY && action == 2) walk(i, j);
+            if(entity_grid[i][j].type == newHerbivore.type & dis(gen) < HERBIVORE_REPRODUCTION_PROBABILITY && action == 3) reproduceHerb(i, j);
+        }
+    }
+}
+
 //***CARNIVORO
 //*
 void walkCarnv(int i, int j)
 {
+    int possibilities[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}}, 
+        valueRan, valueTot = 0;
+
+    if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type))
+    {
+        possibilities[valueTot][0] = i + 1;
+        possibilities[valueTot][1] = j;
+        valueTot++;
+    }
+    if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)) 
+    {
+        possibilities[valueTot][0] = i - 1;
+        possibilities[valueTot][1] = j;
+        valueTot++;
+    }
+    if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)) 
+    {
+        possibilities[valueTot][0] = i;
+        possibilities[valueTot][1] = j-1;
+        valueTot++;
+    }
+    if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)) 
+    {
+        possibilities[valueTot][0] = i;
+        possibilities[valueTot][1] = j + 1;
+        valueTot++;
+    }
+
+    if(valueTot - 1 != -1)
+    {
+        std::uniform_real_distribution<> rand(0, valueTot - 1);
+        valueRan = rand(gen);
+        int I = possibilities[valueRan][0], J = possibilities[valueRan][1];
+
+        entity_grid[i][j].energy -= 5;
+        entity_grid[I][J] = entity_grid[i][j];
+        entity_grid[i][j] = newEmpty;
+    }
+
     if ((i + 1) < NUM_ROWS && (dis(gen) < CARNIVORE_MOVE_PROBABILITY))
     {
         entity_grid[i][j].energy -= 5;
@@ -286,6 +347,7 @@ void walkCarnv(int i, int j)
     }
 }
 
+/*
 void moveCarnv(int i, int j)
 {
     for (int i = 0; i < NUM_ROWS; i++)
@@ -296,8 +358,8 @@ void moveCarnv(int i, int j)
         }
     }
 }
-
-void reproduceCarn(int i, int j)
+*/
+void reproduceCarnv(int i, int j)
 {
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type))
     {
@@ -309,12 +371,12 @@ void reproduceCarn(int i, int j)
         entity_grid[i - 1][j] = newHerbivore;
         entity_grid[i][j].energy -= 10;
     }
-    else if((j - 1) >= 0 && (entity_grid[j - 1][j].type == newEmpty.type)) 
+    else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)) 
     {
         entity_grid[i][j - 1] = newHerbivore;
         entity_grid[i][j].energy -= 10;
     }
-    else if((j + 1) < NUM_ROWS && (entity_grid[j + 1][j].type == newEmpty.type)) 
+    else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)) 
     {
         entity_grid[i][j + 1] = newHerbivore;
         entity_grid[i][j].energy -= 10;
@@ -324,6 +386,18 @@ void reproduceCarn(int i, int j)
 }
 
 
+void actionCarnv(int action)
+{
+    for (int i = 0; i < NUM_ROWS; i++)
+    {
+        for (int j = 0; j < NUM_ROWS; j++)
+        {
+            if(entity_grid[i][j].type == newCarnivore.type & dis(gen) < CARNIVORE_MOVE_PROBABILITY && action == 1) walk(i, j);
+            if(entity_grid[i][j].type == newCarnivore.type & dis(gen) < CARNIVORE_EAT_PROBABILITY && action == 2) eat(i, j, newCarnivore, 30);
+            if(entity_grid[i][j].type == newCarnivore.type & dis(gen) < CARNIVORE_REPRODUCTION_PROBABILITY && action == 3) reproduceCarnv(i, j);
+        }
+    }
+}
 
 int main()
 {
@@ -368,29 +442,32 @@ int main()
     // Endpoint to process HTTP GET requests for the next simulation iteration
     CROW_ROUTE(app, "/next-iteration")
         .methods("GET"_method)([]()
-                               {
+                               {          
         // Simulate the next iteration
         // Iterate over the entity grid and simulate the behaviour of each entity
-                /*
-                PLANT_REPRODUCTION_PROBABILITY = 0.2;
-                const double HERBIVORE_REPRODUCTION_PROBABILITY = 0.075;
-                const double CARNIVORE_REPRODUCTION_PROBABILITY = 0.025;
-                const double HERBIVORE_MOVE_PROBABILITY = 0.7;
-                const double HERBIVORE_EAT_PROBABILITY = 0.9;
-                const double CARNIVORE_MOVE_PROBABILITY = 0.5;
-                const double CARNIVORE_EAT_PROBABILITY = 1.0;
-                */
-        ageSimulation();
-        moveHerbv();
-        //plantGrowth();
 
+        ageSimulation();
+        
+        actionCarnv(1);
+        actionCarnv(2);
+        actionCarnv(3);
+
+        actionHerbv(1);
+        actionHerbv(2);
+        actionHerbv(3);
+
+        plantGrowth();
+
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         // <YOUR CODE HERE>
         
+
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
         return json_grid.dump(); });
     app.port(8080).run();
 
+    
 
     return 0;
 }
