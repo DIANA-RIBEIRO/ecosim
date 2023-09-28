@@ -347,9 +347,6 @@ int main()
 
         plantGrowth();
 
-        //std::this_thread::sleep_for(std::chrono::seconds(1));
-        // <YOUR CODE HERE>
-        
 
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
