@@ -4,9 +4,11 @@
 #include "crow_all.h"
 #include "json.hpp"
 #include <random>
-#include <iostream>
 #include <chrono>
 #include <thread>
+#include <vector>
+#include <mutex>
+#include <iostream>
 
 static const uint32_t NUM_ROWS = 15;
 
@@ -26,11 +28,21 @@ const double HERBIVORE_EAT_PROBABILITY = 0.9;
 const double CARNIVORE_MOVE_PROBABILITY = 0.5;
 const double CARNIVORE_EAT_PROBABILITY = 1.0;
 
+// Randoms
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_int_distribution<> distribution(0, NUM_ROWS-1);
 std::uniform_real_distribution<> dis(0.0, 1.0);
 
+// Mutex
+std::mutex mtx;
+
+// Intervals
+bool waitInterval = true;
+
+std::vector<std::thread> vectorCarnivores;
+std::vector<std::thread> vectorHerbivores;
+std::vector<std::thread> vectorPlants;
 
 // Type definitions
 enum entity_type_t
@@ -79,66 +91,30 @@ entity_t newPlant = {entity_type_t::plant, 0, PLANT_MAXIMUM_AGE};
 entity_t newHerbivore = {entity_type_t::herbivore, MAXIMUM_ENERGY, HERBIVORE_MAXIMUM_AGE};
 entity_t newCarnivore = {entity_type_t::carnivore, MAXIMUM_ENERGY, CARNIVORE_MAXIMUM_AGE};
 
-//Inicia o sistema com os dados colocados no inicio da simulacao
-void startEcoSim(uint32_t NUM_PLANTS, uint32_t NUM_HERBV, uint32_t NUM_CARNV)
-{
-    for(int stop = 0; stop < NUM_PLANTS; stop++)
-    {
-        entity_grid[distribution(gen)][distribution(gen)] = newPlant;
-    }
-
-    for(uint32_t stop = 0,i ,j; stop < NUM_HERBV; stop++)
-    {
-        i = distribution(gen);
-        j = distribution(gen);
-        
-        if(entity_grid[i][j].type == newEmpty.type)
-        {
-            entity_grid[i][j] = newHerbivore;
-        }
-        else
-        {
-            while(entity_grid[i][j].type == newEmpty.type)
-            {
-                if(j == NUM_ROWS) i++;
-                j++;
-            }
-            entity_grid[i][j] = newHerbivore;
-        }
-    }
-
-    for(uint32_t stop = 0,i ,j; stop < NUM_CARNV; stop++)
-    {
-        i = distribution(gen);
-        j = distribution(gen);
-
-        if(entity_grid[i][j].type == newEmpty.type)
-        {
-            entity_grid[i][j] = newCarnivore;
-        }
-        else
-        {
-            while(entity_grid[i][j].type == newEmpty.type)
-            {
-                if(j == NUM_ROWS) i++;
-                j++;
-            }
-            entity_grid[i][j] = newCarnivore;
-        }
-    }
-}
+entity_t testes = {entity_type_t::plant, 0, 500};
 
 //Simula o envelhecimento dos seres do sistema
 void ageSimulation()
 {
-    for (auto& row : entity_grid)
-    {
-        for (auto& space : row)
-        {
-            if(space.type != newEmpty.type) space.age--;
-            if(space.age == 0) space = newEmpty;
-        }
-    }
+    //entity_grid[0][0] = testes;
+    //do{
+        //entity_grid[0][0] = teste;
+        //if(!waitInterval)
+        //{
+            for (auto& row : entity_grid)
+            {
+                for (auto& space : row)
+                {
+                    std::unique_lock<std::mutex> lock(mtx);
+                    if(space.type != newEmpty.type) space.age--;
+                    if(space.age == 0) space = newEmpty;
+                    lock.unlock();
+                }
+            }
+            //waitInterval = true;
+        //}
+    //}while(1);
+            
 }
 
 //***PLANTA
@@ -275,7 +251,7 @@ void actionHerbv(int action)
     }
 }
 
-void actionCarnv(int action)
+void actionCarnv1(int action)
 {
     for (int i = 0; i < NUM_ROWS; i++)
     {
@@ -286,6 +262,78 @@ void actionCarnv(int action)
             if(entity_grid[i][j].type == newCarnivore.type && dis(gen) <= CARNIVORE_REPRODUCTION_PROBABILITY && action == 3 && entity_grid[i][j].energy >= THRESHOLD_ENERGY_FOR_REPRODUCTION) reproduce(i, j, newCarnivore);
         }
     }
+}
+
+void actionCarnv(int i, int j, entity_t animal)
+{
+    //std::this_thread::sleep_for(std::chrono::seconds(60));
+    while(true){
+        if(waitInterval){
+            std::unique_lock<std::mutex> lock(mtx);
+            if(dis(gen) <= CARNIVORE_EAT_PROBABILITY) eat(i, j, newHerbivore, 20);
+            if(dis(gen) <= CARNIVORE_MOVE_PROBABILITY) walk(i, j);
+            if(dis(gen) <= CARNIVORE_REPRODUCTION_PROBABILITY && animal.energy >= THRESHOLD_ENERGY_FOR_REPRODUCTION) reproduce(i, j, newCarnivore);
+            lock.unlock();
+            waitInterval = false;
+        }
+    }
+}
+
+
+
+//Inicia o sistema com os dados colocados no inicio da simulacao
+void startEcoSim(uint32_t NUM_PLANTS, uint32_t NUM_HERBV, uint32_t NUM_CARNV)
+{
+    for(int stop = 0; stop < NUM_PLANTS; stop++)
+    {
+        entity_grid[distribution(gen)][distribution(gen)] = newPlant;
+        //vectorPlants.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j]));
+    }
+
+    for(uint32_t stop = 0,i ,j; stop < NUM_HERBV; stop++)
+    {
+        i = distribution(gen);
+        j = distribution(gen);
+        
+        if(entity_grid[i][j].type == newEmpty.type)
+        {
+            entity_grid[i][j] = newHerbivore;
+            //vectorHerbivores.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j]));
+        }
+        else
+        {
+            while(entity_grid[i][j].type == newEmpty.type)
+            {
+                if(j == NUM_ROWS) i++;
+                j++;
+            }
+            entity_grid[i][j] = newHerbivore;
+            //vectorHerbivores.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j]));
+        }
+    }
+
+    for(uint32_t stop = 0,i ,j; stop < NUM_CARNV; stop++)
+    {
+        i = distribution(gen);
+        j = distribution(gen);
+
+        if(entity_grid[i][j].type == newEmpty.type)
+        {
+            entity_grid[i][j] = newCarnivore;
+            //vectorCarnivores.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j])); 
+        }
+        else
+        {
+            while(entity_grid[i][j].type == newEmpty.type)
+            {
+                if(j == NUM_ROWS) i++;
+                j++;
+            }
+            entity_grid[i][j] = newCarnivore;
+            //vectorCarnivores.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j]));
+        }
+    }
+    //for (auto& th : vectorCarnivores) th.join();
 }
 
 int main()
@@ -322,7 +370,7 @@ int main()
         // Create the entities
         // <YOUR CODE HERE>
         startEcoSim((uint32_t)request_body["plants"], (uint32_t)request_body["herbivores"], (uint32_t)request_body["carnivores"]);
-              
+
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
         res.body = json_grid.dump();
@@ -331,15 +379,33 @@ int main()
     // Endpoint to process HTTP GET requests for the next simulation iteration
     CROW_ROUTE(app, "/next-iteration")
         .methods("GET"_method)([]()
-                               {          
+                               {         
         // Simulate the next iteration
         // Iterate over the entity grid and simulate the behaviour of each entity
 
-        ageSimulation();
-        
-        actionCarnv(1);
+        //ageSimulation();
+        std::thread runAge(ageSimulation);
+        waitInterval = true;
+
+        //criar função q chama isso, acho q é só isso kkkk
+        //será q dá pra fazer logo quando cria os bicho?
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            for (int j = 0; j < NUM_ROWS; j++)
+            {
+                if(entity_grid[i][j].type == newCarnivore.type) {
+                    entity_grid[0][0] = testes;
+                    
+                    vectorCarnivores.push_back(std::thread(actionCarnv, i, j, entity_grid[i][j]));testes.age*=10;
+                }
+            }
+        }
+
+        /*actionCarnv(1);
         actionCarnv(2);
-        actionCarnv(3);
+        actionCarnv(3);*/
+
+        testes.age = -1;
 
         actionHerbv(1);
         actionHerbv(2);
@@ -347,11 +413,16 @@ int main()
 
         plantGrowth();
 
+        
+        runAge.join();
+        for (auto& vC : vectorCarnivores) vC.join();
 
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
         return json_grid.dump(); });
     app.port(8080).run();
+
+    
 
     return 0;
 }

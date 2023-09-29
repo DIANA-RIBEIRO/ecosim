@@ -4,11 +4,9 @@
 #include "crow_all.h"
 #include "json.hpp"
 #include <random>
+#include <iostream>
 #include <chrono>
 #include <thread>
-#include <vector>
-#include <mutex>
-#include <iostream>
 
 static const uint32_t NUM_ROWS = 15;
 
@@ -28,17 +26,11 @@ const double HERBIVORE_EAT_PROBABILITY = 0.9;
 const double CARNIVORE_MOVE_PROBABILITY = 0.5;
 const double CARNIVORE_EAT_PROBABILITY = 1.0;
 
-// Randoms
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_int_distribution<> distribution(0, NUM_ROWS-1);
 std::uniform_real_distribution<> dis(0.0, 1.0);
 
-// Mutex
-std::mutex mtx;
-
-// Intervals
-bool waitInterval = true;
 
 // Type definitions
 enum entity_type_t
@@ -86,8 +78,6 @@ entity_t newEmpty = {entity_type_t::empty, 0, 0};
 entity_t newPlant = {entity_type_t::plant, 0, PLANT_MAXIMUM_AGE};
 entity_t newHerbivore = {entity_type_t::herbivore, MAXIMUM_ENERGY, HERBIVORE_MAXIMUM_AGE};
 entity_t newCarnivore = {entity_type_t::carnivore, MAXIMUM_ENERGY, CARNIVORE_MAXIMUM_AGE};
-
-std::vector<std::thread> objects;
 
 //Inicia o sistema com os dados colocados no inicio da simulacao
 void startEcoSim(uint32_t NUM_PLANTS, uint32_t NUM_HERBV, uint32_t NUM_CARNV)
@@ -138,30 +128,17 @@ void startEcoSim(uint32_t NUM_PLANTS, uint32_t NUM_HERBV, uint32_t NUM_CARNV)
     }
 }
 
-
-
 //Simula o envelhecimento dos seres do sistema
 void ageSimulation()
 {
-    while(true)
+    for (auto& row : entity_grid)
     {
-        entity_grid[0][0] = entity_t {entity_type_t::plant, 0, 500};
-        if(!waitInterval)
+        for (auto& space : row)
         {
-            for (auto& row : entity_grid)
-            {
-                for (auto& space : row)
-                {
-                    std::unique_lock<std::mutex> lock(mtx);
-                    if(space.type != newEmpty.type) space.age--;
-                    if(space.age == 0) space = newEmpty;
-                    lock.unlock();
-                }
-            }
-            waitInterval = true;
+            if(space.type != newEmpty.type) space.age--;
+            if(space.age == 0) space = newEmpty;
         }
     }
-            
 }
 
 //***PLANTA
@@ -313,7 +290,6 @@ void actionCarnv(int action)
 
 int main()
 {
-    
     crow::SimpleApp app;
 
     // Endpoint to serve the HTML page
@@ -346,27 +322,21 @@ int main()
         // Create the entities
         // <YOUR CODE HERE>
         startEcoSim((uint32_t)request_body["plants"], (uint32_t)request_body["herbivores"], (uint32_t)request_body["carnivores"]);
-
+              
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
         res.body = json_grid.dump();
         res.end(); });
 
-    
-
     // Endpoint to process HTTP GET requests for the next simulation iteration
     CROW_ROUTE(app, "/next-iteration")
         .methods("GET"_method)([]()
-                               {         
+                               {          
         // Simulate the next iteration
         // Iterate over the entity grid and simulate the behaviour of each entity
 
         ageSimulation();
-        //std::thread runAge(ageSimulation);
-        waitInterval = false;
-
-        //criar função q chama isso, acho q é só isso kkkk
-        //será q dá pra fazer logo quando cria os bicho?
+        
         actionCarnv(1);
         actionCarnv(2);
         actionCarnv(3);
@@ -377,15 +347,11 @@ int main()
 
         plantGrowth();
 
-        
-        //runAge.join();
 
         // Return the JSON representation of the entity grid
         nlohmann::json json_grid = entity_grid; 
         return json_grid.dump(); });
     app.port(8080).run();
-
-    
 
     return 0;
 }
