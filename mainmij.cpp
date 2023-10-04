@@ -35,7 +35,7 @@ std::uniform_int_distribution<> distribution(0, NUM_ROWS-1);
 std::uniform_real_distribution<> dis(0.0, 1.0);
 
 // Mutex
-std::mutex mtx;
+std::mutex mtx[NUM_ROWS][NUM_ROWS];
 
 // Intervals
 bool waitInterval = true;
@@ -108,10 +108,10 @@ void ageSimulation1()
 
 void ageSimulation(int i, int j)
 {
-    std::unique_lock<std::mutex> lock(mtx);
+    std::unique_lock<std::mutex> lock(mtx[i][j]);
     if(entity_grid[i][j].type != newEmpty.type) entity_grid[i][j].age--;
     if(entity_grid[i][j].age == 0) entity_grid[i][j] = newEmpty;
-    mtx.unlock();
+    mtx[i][j].unlock();
 }
 
 //***PLANTA
@@ -119,23 +119,29 @@ void ageSimulation(int i, int j)
 //Faz uma planta crescer em um espaço adjacente
 void growth(int i, int j)
 {
-    std::unique_lock<std::mutex> lock(mtx);
+    std::unique_lock<std::mutex> lock(mtx[i + 1][j]);
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type)){
         entity_grid[i + 1][j] = newPlant;
     }
+    mtx[i + 1][j].unlock();
 
+    std::unique_lock<std::mutex> lock(mtx[i - 1][j]);
     if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)){
         entity_grid[i - 1][j] = newPlant;
     }
+    mtx[i - 1][j].unlock();
 
+    std::unique_lock<std::mutex> lock(mtx[i][j - 1]);
     if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)){
         entity_grid[i][j - 1] = newPlant;
     }
+    mtx[i][j - 1].unlock();
     
+    std::unique_lock<std::mutex> lock(mtx[i][j + 1]);
     if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)){
         entity_grid[i][j + 1] = newPlant;
     }
-    mtx.unlock();
+    mtx[i][j + 1].unlock();
 }
 
 //Confere probabilidade de uma planta crescer
@@ -189,11 +195,11 @@ void walk(int i, int j)
         valueRan = rand(gen);
         int I = possibilities[valueRan][0], J = possibilities[valueRan][1];
 
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i][j]);
         entity_grid[i][j].energy -= 5;
         entity_grid[I][J] = entity_grid[i][j];
         entity_grid[i][j] = newEmpty;
-        mtx.unlock();
+        mtx[i][j].unlock();
     }
     
 }
@@ -203,31 +209,31 @@ void eat(int i, int j, entity_t animal, int32_t gainEnergy)
 {
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == animal.type))
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i + 1][j]);
         entity_grid[i + 1][j] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
-        mtx.unlock();
+        mtx[i + 1][j].unlock();
     }
     else if((i - 1) >= 0 && (entity_grid[i - 1][j].type == animal.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i - 1][j]);
         entity_grid[i - 1][j] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
-        mtx.unlock();
+        mtx[i - 1][j].unlock();
     }
     else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == animal.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i][j - 1]);
         entity_grid[i][j - 1] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
-        mtx.unlock();
+        mtx[i][j - 1].unlock();
     }
     else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == animal.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i][j + 1]);
         entity_grid[i][j + 1] = newEmpty;
         entity_grid[i][j].energy += gainEnergy;
-        mtx.unlock();
+        mtx[i][j + 1].unlock();
     }
 }
 
@@ -236,31 +242,31 @@ void reproduce(int i, int j, entity_t animal)
 {
     if ((i + 1) < NUM_ROWS && (entity_grid[i + 1][j].type == newEmpty.type))
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i + 1][j]);
         entity_grid[i + 1][j] = animal;
         entity_grid[i][j].energy -= 10;
-        mtx.unlock();
+        mtx[i + 1][j].unlock();
     }
     else if((i - 1) >= 0 && (entity_grid[i - 1][j].type == newEmpty.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i - 1][j]);
         entity_grid[i - 1][j] = animal;
         entity_grid[i][j].energy -= 10;
-        mtx.unlock();
+        mtx[i - 1][j].unlock();
     }
     else if((j - 1) >= 0 && (entity_grid[i][j - 1].type == newEmpty.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i][j - 1]);
         entity_grid[i][j - 1] = animal;
         entity_grid[i][j].energy -= 10;
-        mtx.unlock();
+        mtx[i][j - 1].unlock();
     }
     else if((j + 1) < NUM_ROWS && (entity_grid[i][j + 1].type == newEmpty.type)) 
     {
-        std::unique_lock<std::mutex> lock(mtx);
+        std::unique_lock<std::mutex> lock(mtx[i][j + 1]);
         entity_grid[i][j + 1] = animal;
         entity_grid[i][j].energy -= 10;
-        mtx.unlock();
+        mtx[i][j + 1].unlock();
     }
 
     if(entity_grid[i][j].energy <= 0) entity_grid[i][j] = newEmpty;
